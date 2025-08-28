@@ -10,7 +10,7 @@ from typing import Any, Generic, SupportsFloat, Literal
 import gymnasium as gym
 from gymnasium.core import ActType, ObsType, RenderFrame
 
-import rerun as rr
+import rerun as rr, rerun.blueprint as rrb
 
 
 __all__ = [
@@ -92,6 +92,8 @@ class RenderRerun(
             self.render()
             self.rec.set_sinks(*self.sinks)
         
+        self.start_blueprint()
+        
 
     @property
     def render_mode(self):
@@ -139,17 +141,61 @@ class RenderRerun(
         """Logs the data to Rerun."""
         self.rec.set_time("frame", sequence=self.frame)
 
-        # output = (obsv, reward, done, truncated, info)
-        self.rec.log(f"episode{self.episode:05}/reward", rr.TextLog(str(output[1])))
-        if output[2]:
-            self.rec.log(f"episode{self.episode:05}/done", rr.TextLog("DONE!"))
-        if output[3]:
-            self.rec.log(f"episode{self.episode:05}/interrupted", rr.TextLog("Interrupted"))
+        episode_name = f"episode{self.episode:05}"
 
-        self.rec.log(f"episode{self.episode:05}/action", rr.TextLog(str(action)))
-        self.rec.log(f"episode{self.episode:05}/frames", rr.Image(super().render()).compress(jpeg_quality=95))
+        # output = (obsv, reward, done, truncated, info)
+        self.rec.log(f"{episode_name}/reward", rr.TextLog(str(output[1])))
+        if output[2]:
+            self.rec.log(f"{episode_name}/done", rr.TextLog("DONE!"))
+        if output[3]:
+            self.rec.log(f"{episode_name}/interrupted", rr.TextLog("Interrupted"))
+
+        self.rec.log(f"{episode_name}/action", rr.TextLog(str(action)))
+        self.rec.log(f"{episode_name}/frames", rr.Image(super().render()).compress(jpeg_quality=95))
 
         self.rec.flush()
+        self.update_blueprint(episode_name)
+
+
+    def start_blueprint(self):
+        self.episode_names = set()
+        self.tabs = []
+
+
+    def update_blueprint(self, episode_name):
+        if episode_name not in self.episode_names:
+            self.episode_names.add(episode_name)
+            self.tabs.append(
+                rrb.Horizontal(
+                            contents= [
+                                rrb.Spatial2DView(
+                                    name="frames",
+                                    origin=f"/{episode_name}/frames"
+                                )
+                            ] + 
+                            [
+                                rrb.Vertical(contents=[
+                                    rrb.TextLogView(
+                                        name=name,
+                                        origin=f"/{episode_name}/{name}")
+                                        for name in ["action", "reward"]
+
+                                ])
+                            ],
+                            name=episode_name,
+                        )
+            )
+            
+            blueprint = rrb.Blueprint(
+                rrb.Tabs(
+                    contents=self.tabs
+                ),
+                rrb.BlueprintPanel(state="collapsed"),
+                rrb.SelectionPanel(state="collapsed"),
+                rrb.TimePanel(state="expanded"),
+            )
+            self.rec.send_blueprint(blueprint)
+
 
 
     def close(self):
