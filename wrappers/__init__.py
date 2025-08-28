@@ -66,6 +66,9 @@ class RenderRerun(
             skip_episodes (int): 0 or 1 save all episodes, otherwise skip episodes to reduce file size. Default 100 means episodes 1, 101, 201, ... are saved.
             viewer (str or False): Default False. Other options "script" or "notebook" should be chosen based on respective code execution method.
         """
+        if filename and viewer:
+            raise Exception("Can't output to both file and viewer at the same time. Check docs for differences between syncronous and asyncronous workflows: https://rerun.io/docs/concepts/app-model#logging-and-visualizing-data-on-native")
+
         gym.Wrapper.__init__(self, env)
 
         assert env.render_mode is not None
@@ -76,21 +79,15 @@ class RenderRerun(
         self.skip_episodes = skip_episodes
         self.viewer = viewer
 
-        # rr.init(application_id="rerun_wrapper")
-        self.rec = rr.RecordingStream(application_id="rerun_wrapper")
-
-
-        self.sinks = []
-
-        if filename:
-            self.sinks.append(rr.FileSink(path=filename))
+        rr.init(application_id="rerun_wrapper")
+        # self.rec = rr.RecordingStream(application_id="rerun_wrapper")
 
         if self.viewer:
-            self.sinks.append(rr.GrpcSink())
-        
-        if self.sinks:
             self.render()
-            self.rec.set_sinks(*self.sinks)
+
+        if filename:
+            rr.save(filename)
+
         
         self.start_blueprint()
         
@@ -117,7 +114,7 @@ class RenderRerun(
     def reset(
         self, *, seed: int | None = None, options: dict[str, Any] | None = None
     ) -> tuple[ObsType, dict[str, Any]]:
-        """Reset the base environment, eventually clear the frame_list, and collect a frame."""
+        """Reset the base environment, move to next episode and reset frames."""
         output = super().reset(seed=seed, options=options)
 
         self.episode += 1
@@ -129,31 +126,31 @@ class RenderRerun(
     def render(self) -> None:
         """Displays the Rerun viewer in a Jupyter Notebook."""
         if self.viewer == "script":
-            self.rec.spawn()
+            rr.spawn()
             
         if self.viewer == "notebook":
-            self.rec.notebook_show()
+            rr.notebook_show()
 
         return None
 
 
     def logger(self, output: tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]], action: ActType) -> None:
         """Logs the data to Rerun."""
-        self.rec.set_time("frame", sequence=self.frame)
+        rr.set_time("frame", sequence=self.frame)
 
         episode_name = f"episode{self.episode:05}"
 
         # output = (obsv, reward, done, truncated, info)
-        self.rec.log(f"{episode_name}/reward", rr.TextLog(str(output[1])))
+        rr.log(f"{episode_name}/reward", rr.TextLog(str(output[1])))
         if output[2]:
-            self.rec.log(f"{episode_name}/done", rr.TextLog("DONE!"))
+            rr.log(f"{episode_name}/done", rr.TextLog("DONE!"))
         if output[3]:
-            self.rec.log(f"{episode_name}/interrupted", rr.TextLog("Interrupted"))
+            rr.log(f"{episode_name}/interrupted", rr.TextLog("Interrupted"))
 
-        self.rec.log(f"{episode_name}/action", rr.TextLog(str(action)))
-        self.rec.log(f"{episode_name}/frames", rr.Image(super().render()).compress(jpeg_quality=95))
+        rr.log(f"{episode_name}/action", rr.TextLog(str(action)))
+        rr.log(f"{episode_name}/frames", rr.Image(super().render()).compress(jpeg_quality=95))
 
-        self.rec.flush()
+        # rr.flush()
         self.update_blueprint(episode_name)
 
 
@@ -194,12 +191,12 @@ class RenderRerun(
                 rrb.SelectionPanel(state="collapsed"),
                 rrb.TimePanel(state="expanded"),
             )
-            self.rec.send_blueprint(blueprint)
+            rr.send_blueprint(blueprint)
 
 
 
     def close(self):
         """Disconnects Rerun and closes the wrapped environment."""
-        self.rec.disconnect()
+        rr.disconnect()
         return super().close()
 
