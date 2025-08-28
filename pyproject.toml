@@ -1,0 +1,13 @@
+[project]
+name = "rerun-demo"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "gym-line-follower",
+    "rerun-sdk[notebook]>=0.24.1",
+]
+
+[tool.uv.sources]
+gym-line-follower = { git = "https://github.com/ag-mout/gym-line-follower" }
