@@ -79,10 +79,11 @@ class RenderRerun(
         # Store any active RecordingStream instances in a list and iterate over it.
         self.recs: list[rr.RecordingStream] = []
 
+        self.file_rec: rr.RecordingStream | None = None
         if filename:
-            file_rec = rr.RecordingStream(application_id="rerun_wrapper_file")
-            file_rec.save(filename)
-            self.recs.append(file_rec)
+            self.file_rec = rr.RecordingStream(application_id="rerun_wrapper_file")
+            self.file_rec.save(filename)
+            self.recs.append(self.file_rec)
 
         # Create a viewer recording stream only; do not auto-spawn — spawn when render() is called.
         self.viewer_rec = rr.RecordingStream(application_id="rerun_wrapper_viewer")
@@ -121,6 +122,9 @@ class RenderRerun(
 
         self.episode += 1
         self.frame = 0
+
+        if self.file_rec:
+            self.file_rec.flush()
 
         return output
 
