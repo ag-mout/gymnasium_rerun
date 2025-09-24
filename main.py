@@ -5,12 +5,12 @@ from wrappers import RenderRerun
 
 def main():
     env = gym.make('LineFollower-v0', gui = False, render_mode = 'rgb_array', randomize=False)
-    env = RenderRerun(env, filename=None, skip_episodes=3, viewer="script")
+    env = RenderRerun(env, filename="gym-line-follower.rrd", skip_episodes=3, viewer="script")
     
     for j in range(5):
         env.reset(seed=123)
 
-        for i in range(10):
+        for i in range(500):
             action = env.action_space.sample()
             obsv, reward, done, truncated, info = env.step(action)
             
